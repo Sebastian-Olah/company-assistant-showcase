@@ -1,6 +1,6 @@
 # Company Knowledge Assistant: an AI assistant for a security and access-control integrator
 
-> A private, company-wide AI assistant built for a **security and access-control integrator** (name withheld; screenshots use the fictional brand *Northwind*). It answers staff questions from partner documentation, websites, company files and email, files every new document by itself, drafts and sends email from people's own mailboxes, and picks the right AI model for each job.
+> A private, company-wide AI assistant built for a **security and access-control integrator** (name withheld; screenshots use the fictional brand *Northwind*). It answers staff questions from partner documentation, websites, company files and email, files every new document by itself, drafts and sends email from people's own mailboxes, and routes every message to the best of several AI models for that task.
 >
 > **This is a public walkthrough.** The source code is in a private repository; this page explains what the system does, how it is built and the decisions behind it. Screenshots use demo data under a fictional brand; the chat answers are real answers from the system with names swapped.
 
@@ -70,8 +70,21 @@ Each person connects their own Zoho mailbox once. The agent indexes sent and rec
 |---|---|
 | ![Email draft in chat](screenshots/13a-chat-email-draft.png) | ![Email panel](screenshots/13-email-panel.png) |
 
-### 7. Model router: the right model for each job
-A planner classifies every message (company knowledge, quick task, writing, analysis, reading images) and routes it to the model that suits it best, with automatic fallback. Admins change models without a redeploy, and cost per route is tracked.
+### 7. Multi-model routing: the right model for each task
+Staff never pick a model. Every message first goes to a **planner**, which works out what kind of job it is. The router then sends it to the model best suited to that job:
+
+| Task (decided per message) | Typical requests | Default model |
+|---|---|---|
+| **Company knowledge** | product how-tos, partner questions, "when did we last email…" | base model, answering from retrieved sources |
+| **Quick tasks** | rewrite, translate, shorten, short replies | Claude Haiku (fast, cheap) |
+| **Writing** | emails, letters, proposals | Claude Sonnet |
+| **Analysis** | spreadsheets, long attached documents, comparisons | Claude Sonnet (long context) |
+| **Reading images** | photos, screenshots, scanned pages | Claude Haiku (vision) |
+
+- **Multi-provider.** One `provider:model` setting per task can point at the base model's own API or at any model on OpenRouter (Claude, GPT, Gemini, Mistral, DeepSeek…). Admins swap models from the panel and can **Test** each one. No redeploy is needed.
+- **Context-aware.** The planner also decides whether a message needs the knowledge base at all. General writing skips retrieval. A question with long attached documents is upgraded to the long-context *analysis* route automatically.
+- **Never stops.** If a provider isn't configured or a model fails mid-request, the answer falls back to the knowledge model.
+- **Cost-tracked and private.** Tokens and cost are logged per task and per model. Every OpenRouter request only goes to providers that don't store or train on prompts (zero-data-retention mode is optional).
 
 ![Model router](screenshots/10-model-router.png)
 
@@ -138,6 +151,7 @@ flowchart LR
   - People can export their own data.
   - Retention windows are enforced.
   - AI requests go only to providers that don't train on or store prompts.
+- **Multi-model routing.** A planner classifies each message into one of five task types, and a router sends it to the model configured for that task. The router has provider fallback, a context-length upgrade for long attachments, and cost logging per task.
 - **Single-container deployment.** Everything runs in one Docker image on Railway with a persistent volume. Models are baked into the image, and pushes to `main` deploy automatically.
 
 ---
